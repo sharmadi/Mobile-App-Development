@@ -1,0 +1,49 @@
+first name
+last name
+username/email
+password
+
+
+first name           last name       username/email            password     UserID
+Aditya               Sharma          sharmadi610@gmail.com
+Akshay               Sharma          thatnumber4@gmail.com
+
+
+"users": [
+  {
+    "userID":
+    "first name": "Aditya"
+    "last name": "Sharma"
+    "username/email": "sharmadi610@gmail.com"
+  },
+  {
+    "userID":
+    "first name": "Akshay"
+    "last name": "Sharma"
+    "username/email": "thatnumber4@gmail.com"
+  }
+]
+"chats": [
+  {
+    "message": "Hello",
+    "participants": ["Aditya", "Akshay"]
+  },
+  {
+    "message": "Hi"
+    "participants": ["Akshay", "Aditya"]
+  },
+    {
+    "message": "yo"
+    "participants": ["Aditya", "Raja"]
+  },
+  {
+    "message": "yoyo"
+    "participants": ["Raja", "Aditya"]
+  } 
+]
+const chats = Firestore.instance
+         .collection('chats')
+         .where('participants', arrayContains: 'Aditya')
+         .snapshots(); 
+
+

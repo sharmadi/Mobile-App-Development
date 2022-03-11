@@ -20,7 +20,7 @@ export default function Login({ navigation }) {
             const accessToken = userCredential.user.uid;
             const docSnap = await getDoc(doc(firestore, "users", accessToken))
             if (docSnap.exists()) {
-                signIn({ username: accessToken, password, isAdmin:docSnap.data().isAdmin })
+                signIn({ username: accessToken, userId: username, password, isAdmin:docSnap.data().isAdmin })
             } else {
                 console.log("could not find user post login")
             }
@@ -72,12 +72,14 @@ export default function Login({ navigation }) {
           placeholder="Username"
           value={username}
           onChangeText={setUsername}
+          autoCapitalize='none'
         />
         <TextInput
           style={styles.input}
           placeholder="Password"
           value={password}
           onChangeText={setPassword}
+          autoCapitalize='none'
           secureTextEntry
         />
         <View style={styles.loginButton}>

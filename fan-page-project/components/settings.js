@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Image, Text } from 'react-native';
 
-export default function SplashScreen() {
+export default function SettingsTab() {
     return (
         <View style={styles.container}>
             <Image

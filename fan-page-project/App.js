@@ -1,16 +1,27 @@
 import * as React from 'react';
-import { Platform, Button } from 'react-native';
+import { Platform, Button, View, Text, StyleSheet } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import SplashScreen from './components/splash_screen';
 import MessageList from './components/messages_list';
 import Login from './components/login';
 import Register from './components/register';
+import ChatsTab from './components/chats';
+import ChatDetails from './components/chat_details';
+import Profile from './components/profile';
 import { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import { getAuth, signOut } from "firebase/auth";
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import StarRating from 'react-native-star-rating';
+import firebase from './firebase';
+import { doc, getDoc, addDoc, getFirestore, collection, query, where, getDocs, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
 
+const RootStack = createStackNavigator();
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 export const AuthContext = React.createContext();
 
 export default function App() {
@@ -22,6 +33,7 @@ export default function App() {
             ...prevState,
             userToken: action.token,
             isAdmin: action.isAdmin,
+            userId: action.username,
             isLoading: false,
           };
         case 'SIGN_IN':
@@ -30,6 +42,7 @@ export default function App() {
             isSignout: false,
             userToken: action.token,
             isAdmin: action.isAdmin,
+            userId: action.username
           };
         case 'SIGN_OUT':
           return {
@@ -49,20 +62,23 @@ export default function App() {
   );
 
   const [showSplashScreen, setShowSplashScreen] = useState(true);
-
+  const [chatRating, setChatRating] = useState(3);
+  
   useEffect(() => {
     const fetchUserToken = async () => {
       let userToken;
       let userIsAdmin;
+      let userId;
       try {
-        userToken = await SecureStore.getItemAsync('userToken');
-        userIsAdmin = await SecureStore.getItemAsync('userIsAdmin');
+        userToken = await SecureStore.getItemAsync("userToken");
+        userIsAdmin = await SecureStore.getItemAsync("userIsAdmin");
+        userId = await SecureStore.getItemAsync("userId");
       } catch (e) {
         console.log("failed to get user token from secure store")
         console.log(e)
       }
 
-      dispatch({ type: 'RESTORE_TOKEN', token: userToken, isAdmin: userIsAdmin });
+      dispatch({ type: 'RESTORE_TOKEN', token: userToken, isAdmin: (userIsAdmin==="true"), username: userId });
     };
 
     setTimeout(() => {
@@ -76,13 +92,17 @@ export default function App() {
       signIn: async data => {
         if (Platform.OS !== 'web'){
           await SecureStore.setItemAsync("userToken", data.username);
-          await SecureStore.setItemAsync("userIsAdmin", data.isAdmin);
+          await SecureStore.setItemAsync("userIsAdmin", data.isAdmin.toString());
+          await SecureStore.setItemAsync("userId", data.userId);
         }
-        dispatch({ type: 'SIGN_IN', token: data.username, isAdmin: data.isAdmin });
+        dispatch({ type: 'SIGN_IN', token: data.username, isAdmin: data.isAdmin, username: data.userId });
+        // dispatch({ type: 'SIGN_IN', token: data.username, isAdmin: data.isAdmin });
       },
       signOutRedux: async () => {
         if (Platform.OS !== 'web'){
-          await SecureStore.setItemAsync("userToken", null);
+          await SecureStore.deleteItemAsync("userToken");
+          await SecureStore.deleteItemAsync("userIsAdmin");
+          await SecureStore.deleteItemAsync("userId");
         }
         dispatch({ type: 'SIGN_OUT' })
       },
@@ -101,9 +121,62 @@ export default function App() {
         console.log(error)
     });
   }
-  return (
-    <AuthContext.Provider value={authContext}>
-      <NavigationContainer>
+  
+  async function submitReview(p, navigation) {
+    var docId
+    const usersRef = collection(firebase.firestore(), "users");
+    // Create a query against the collection.
+    const q = query(usersRef, where("email", "==", p.params.userId));
+    const querySnapshot = await getDocs(q);
+    querySnapshot.forEach((doc) => {
+      docId = doc.id;
+    });
+
+    const userDocRef = doc(firebase.firestore(), "users", docId);
+    try {
+      await updateDoc(userDocRef, {
+        ratings: arrayUnion(chatRating)
+      }).then(()=>{
+        navigation.navigate("Chats", {
+          screen: "ChatDetails",
+          params: { userId: p.params.userId},
+        })
+      });
+    } catch (error) {
+      if (error.code === 5) {
+        await updateDoc(userDocRef, {
+          ratings: [chatRating]
+        }).then(()=>{
+          navigation.navigate("Chats", {
+            screen: "ChatDetails",
+            params: { userId: p.params.userId},
+          })
+        });
+      }
+    }
+  }
+
+  function Chats({route: {params}, navigation}) {
+    return (
+      <Stack.Navigator>
+        <Stack.Screen name="ChatsRoot" component={ChatsTab} options={{ title: 'Chats' }} />
+        <Stack.Screen name="ChatDetails" component={ChatDetails} initialParams={params} options={{
+            headerRight: () => (
+                <Button 
+                  title={"Rate"} 
+                  onPress={() => navigation.navigate('MyModal', params)}
+                />
+              ),
+            title:"Chat Details"
+            }} />
+    </Stack.Navigator>
+    );
+  }
+
+  function AppNav(){
+    return(
+      <>
+      {showSplashScreen || !state.userToken && (
         <Stack.Navigator>
           {showSplashScreen ? (
             <Stack.Screen name="SplashScreen" component={SplashScreen} options={{headerShown:false}} />
@@ -112,24 +185,87 @@ export default function App() {
               <Stack.Screen name="Login" component={Login} />
               <Stack.Screen name="Register" component={Register} />
             </>
-          ):(
-            <Stack.Screen 
-              name="Messages" 
-              // component={MessageList} 
-              options={{
-                headerRight: () => (
-                  <Button 
-                    title={"Logout"} 
-                    onPress={logout}
-                  />
-                ),
-              }}
-            >
-              {props => <MessageList {...props} isAdmin={state.isAdmin} />}
-            </Stack.Screen>
-          )}
+          ) : (<></>)}
         </Stack.Navigator>
+      )}
+      {state.userToken && (
+        <Tab.Navigator
+          screenOptions={({ route }) => ({
+            tabBarIcon: ({ focused, color, size }) => {
+              let iconName;
+  
+              if (route.name === 'Home') {
+                iconName = focused
+                  ? 'home'
+                  : 'home-outline';
+              } else if (route.name === 'Chats') {
+                iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+              } else if (route.name === 'Profile') {
+                iconName = focused ? 'person-circle' : 'person-circle-outline';
+              }
+              // You can return any component that you like here!
+              return <Ionicons name={iconName} size={size} color={color} />;
+            },
+            tabBarActiveTintColor: 'tomato',
+            tabBarInactiveTintColor: 'gray',
+          })}
+        >
+          <Tab.Screen 
+            name="Home"               
+            options={{
+              headerRight: () => (
+                <Button 
+                  title={"Logout"} 
+                  onPress={logout}
+                />
+              ),
+            }}>
+            {props => <MessageList {...props} isAdmin={state.isAdmin} />}
+          </Tab.Screen>
+          <Tab.Screen name="Chats" component={Chats} options={{ headerShown: false }} />
+          <Tab.Screen name="Profile">
+            {props => <Profile {...props} userId={state.userId}/>}
+          </Tab.Screen>
+        </Tab.Navigator>
+      )}
+      </>
+    )
+  }
+
+  function ModalScreen({ route: {params}, navigation }) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 30 }}>Review this chat</Text>
+        <StarRating
+          disabled={false}
+          maxStars={5}
+          rating={chatRating}
+          selectedStar={(rating) => setChatRating(rating)}
+        />
+        <Button style={styles.submitReviewButton} onPress={()=>submitReview(params, navigation)} title="Submit Review" />
+      </View>
+    );
+  }
+
+  return (
+    <AuthContext.Provider value={authContext}>
+      <NavigationContainer>
+        <RootStack.Navigator>
+          <RootStack.Group>
+            <RootStack.Screen name="AppNav" component={AppNav} options={{ headerShown: false }}/>
+          </RootStack.Group>
+          <RootStack.Group screenOptions={{ presentation: 'modal' }}>
+            <RootStack.Screen name="MyModal" component={ModalScreen} />
+          </RootStack.Group>
+        </RootStack.Navigator>
+        
       </NavigationContainer>
     </AuthContext.Provider>
   );
 }
+
+const styles = StyleSheet.create({
+  submitReviewButton: {
+      marginTop: "5%"
+  }
+})

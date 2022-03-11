@@ -76,11 +76,11 @@ export default function MessageList({isAdmin}) {
                         <TextInput
                             style={styles.input}
                             onChangeText={(val)=>setMessageToPost(val)}
-                            placeholder={"Enter message to post"}
+                            placeholder={"Compose to: "}
                         />
                         <View style={styles.button}>
                             <Button
-                                title="Post"
+                                title="Enter your message"
                                 onPress={postMessage}
                             />
                         </View>
