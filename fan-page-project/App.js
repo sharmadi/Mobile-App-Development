@@ -8,6 +8,7 @@ import Register from './components/register';
 import ChatsTab from './components/chats';
 import ChatDetails from './components/chat_details';
 import Profile from './components/profile';
+import ChatRating from './components/chat_rating';
 import { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -15,12 +16,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { getAuth, signOut } from "firebase/auth";
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import StarRating from 'react-native-star-rating';
-import firebase from './firebase';
+
 import { doc, getDoc, addDoc, getFirestore, collection, query, where, getDocs, updateDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
 
 const RootStack = createStackNavigator();
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 export const AuthContext = React.createContext();
 
@@ -122,39 +122,7 @@ export default function App() {
     });
   }
   
-  async function submitReview(p, navigation) {
-    var docId
-    const usersRef = collection(firebase.firestore(), "users");
-    // Create a query against the collection.
-    const q = query(usersRef, where("email", "==", p.params.userId));
-    const querySnapshot = await getDocs(q);
-    querySnapshot.forEach((doc) => {
-      docId = doc.id;
-    });
 
-    const userDocRef = doc(firebase.firestore(), "users", docId);
-    try {
-      await updateDoc(userDocRef, {
-        ratings: arrayUnion(chatRating)
-      }).then(()=>{
-        navigation.navigate("Chats", {
-          screen: "ChatDetails",
-          params: { userId: p.params.userId},
-        })
-      });
-    } catch (error) {
-      if (error.code === 5) {
-        await updateDoc(userDocRef, {
-          ratings: [chatRating]
-        }).then(()=>{
-          navigation.navigate("Chats", {
-            screen: "ChatDetails",
-            params: { userId: p.params.userId},
-          })
-        });
-      }
-    }
-  }
 
   function Chats({route: {params}, navigation}) {
     return (
@@ -164,11 +132,17 @@ export default function App() {
             headerRight: () => (
                 <Button 
                   title={"Rate"} 
-                  onPress={() => navigation.navigate('MyModal', params)}
+                  onPress={() => navigation.navigate("AppNav", {
+                    screen: "Chats",
+                    params: { screen: "ChatRating", params: {userId: params}},
+                  })}
                 />
               ),
             title:"Chat Details"
             }} />
+        <Stack.Screen name="ChatRating" options={{ title: 'Chat Rating' }} >
+          {props => <ChatRating {...props} params={params} navigation={navigation} />}
+        </Stack.Screen>
     </Stack.Navigator>
     );
   }
@@ -232,20 +206,12 @@ export default function App() {
     )
   }
 
-  function ModalScreen({ route: {params}, navigation }) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 30 }}>Review this chat</Text>
-        <StarRating
-          disabled={false}
-          maxStars={5}
-          rating={chatRating}
-          selectedStar={(rating) => setChatRating(rating)}
-        />
-        <Button style={styles.submitReviewButton} onPress={()=>submitReview(params, navigation)} title="Submit Review" />
-      </View>
-    );
-  }
+  // function ModalScreen({ route: {params}, navigation }) {
+  //   return (
+  //     // <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+
+  //   );
+  // }
 
   return (
     <AuthContext.Provider value={authContext}>
@@ -254,9 +220,9 @@ export default function App() {
           <RootStack.Group>
             <RootStack.Screen name="AppNav" component={AppNav} options={{ headerShown: false }}/>
           </RootStack.Group>
-          <RootStack.Group screenOptions={{ presentation: 'modal' }}>
+          {/* <RootStack.Group screenOptions={{ presentation: 'modal' }}>
             <RootStack.Screen name="MyModal" component={ModalScreen} />
-          </RootStack.Group>
+          </RootStack.Group> */}
         </RootStack.Navigator>
         
       </NavigationContainer>
